@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Form + Book Search</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Optional: item QR scanning inside the student page -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <header class="border-b bg-white">
+    <div class="mx-auto max-w-3xl px-4 py-5">
+      <h1 class="text-xl font-bold">Library Entry + Book Search</h1>
+      <p id="subtitle" class="text-sm text-slate-600">Opened from librarian QR.</p>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-3xl px-4 py-6 space-y-6">
+
+    <!-- Invalid token -->
+    <div id="tokenWarning" class="hidden rounded-xl border bg-rose-50 border-rose-200 p-4 text-rose-900">
+      <div class="font-semibold">Invalid or expired QR link</div>
+      <div class="mt-1 text-sm">Please ask the librarian to show a new QR code.</div>
+    </div>
+
+    <!-- Session info -->
+    <section class="rounded-xl border bg-white p-4">
+      <div class="text-xs text-slate-500">Session info</div>
+      <div id="sessionInfo" class="mt-1 text-sm font-mono break-all">—</div>
+    </section>
+
+    <!-- Student details -->
+    <form id="studentForm" class="rounded-xl border bg-white p-4 space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 class="font-semibold">Student Details</h2>
+          <p class="text-sm text-slate-600">Fill this in before requesting a book.</p>
+        </div>
+        <button type="button" id="btnClear"
+          class="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">
+          Clear
+        </button>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-sm text-slate-700">Full name</span>
+          <input name="fullName" required class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm text-slate-700">Student ID</span>
+          <input name="studentId" required class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" />
+        </label>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-sm text-slate-700">Grade / Section</span>
+          <input name="section" required class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                 placeholder="e.g. 10 - St. Luke" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm text-slate-700">Purpose</span>
+          <select name="purpose" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm">
+            <option>Borrow book</option>
+            <option>Return book</option>
+            <option>Study / Reading</option>
+            <option>Research</option>
+            <option>Other</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="block">
+        <span class="text-sm text-slate-700">Notes (optional)</span>
+        <textarea name="notes" rows="2" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+          placeholder="Optional…"></textarea>
+      </label>
+
+      <div id="studentSaved" class="hidden rounded-lg border bg-emerald-50 border-emerald-200 px-3 py-2 text-sm text-emerald-900">
+        Student details saved on this page.
+      </div>
+    </form>
+
+    <!-- Book search -->
+    <section class="rounded-xl border bg-white p-4 space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 class="font-semibold">Search Library Materials</h2>
+          <p class="text-sm text-slate-600">Search by title, item ID, or type. See availability instantly.</p>
+        </div>
+
+        <div class="flex gap-2">
+          <button id="btnScanItem" type="button"
+            class="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">
+            Scan item QR
+          </button>
+          <button id="btnStopScan" type="button"
+            class="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50" disabled>
+            Stop
+          </button>
+        </div>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-3">
+        <label class="block sm:col-span-2">
+          <span class="text-sm text-slate-700">Search</span>
+          <input id="searchInput" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+            placeholder="e.g. Clean Code or B-0007 or Material" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm text-slate-700">Filter</span>
+          <select id="filterSelect" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm">
+            <option value="all">All</option>
+            <option value="available">Available only</option>
+            <option value="checkedout">Checked out only</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="scanBox" class="hidden rounded-lg border bg-slate-50 p-3">
+        <div class="text-sm text-slate-700 mb-2">Point your camera at an ITEM QR (e.g. <span class="font-mono">ITEM:B-0007</span>)</div>
+        <div id="reader" class="w-full"></div>
+        <div class="mt-2 text-xs text-slate-500">Camera requires HTTPS or localhost.</div>
+      </div>
+
+      <div class="rounded-lg border bg-slate-50 p-3">
+        <div class="text-xs text-slate-500">Result</div>
+        <div id="searchMeta" class="mt-1 text-sm text-slate-700">Showing all items.</div>
+      </div>
+
+      <div id="results" class="space-y-2"></div>
+    </section>
+
+    <!-- Request / Submit -->
+    <section class="rounded-xl border bg-white p-4 space-y-3">
+      <h2 class="font-semibold">Request Selected Item</h2>
+      <p class="text-sm text-slate-600">Select an item from the list, then submit a request.</p>
+
+      <div class="rounded-lg border bg-slate-50 p-3">
+        <div class="text-xs text-slate-500">Selected item</div>
+        <div id="selectedItem" class="mt-1 text-sm text-slate-700">—</div>
+      </div>
+
+      <div class="flex gap-2">
+        <button id="btnSubmit" type="button"
+          class="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-50"
+          disabled>
+          Submit request
+        </button>
+        <button id="btnResetDemo" type="button"
+          class="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">
+          Reset demo data
+        </button>
+      </div>
+
+      <div id="success" class="hidden rounded-xl border bg-emerald-50 border-emerald-200 p-4 text-emerald-900">
+        <div class="font-semibold">Submitted!</div>
+        <div class="mt-1 text-sm">Show this screen to the librarian, or wait for confirmation.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="py-10 text-center text-xs text-slate-500">
+    Prototype only • Availability data is demo/in-browser until connected to a backend.
+  </footer>
+
+<script>
+  // -----------------------------
+  // Demo catalog (replace with API later)
+  // -----------------------------
+  function initialState() {
+    return {
+      items: {
+        "B-0007": { id: "B-0007", title: "Clean Code", type: "Book", available: true, borrower: null },
+        "B-0008": { id: "B-0008", title: "Design Patterns", type: "Book", available: false, borrower: "U-1002" },
+        "B-0009": { id: "B-0009", title: "Introduction to Algorithms", type: "Book", available: true, borrower: null },
+        "M-0101": { id: "M-0101", title: "Laptop Charger 65W", type: "Material", available: true, borrower: null },
+        "M-0102": { id: "M-0102", title: "HDMI Adapter", type: "Material", available: false, borrower: "U-1001" }
+      }
+    };
+  }
+  let state = initialState();
+
+  // -----------------------------
+  // Session token from librarian QR
+  // -----------------------------
+  const el = (id) => document.getElementById(id);
+
+  function base64urlDecode(token) {
+    const b64 = token.replaceAll("-", "+").replaceAll("_", "/");
+    const padded = b64 + "===".slice((b64.length + 3) % 4);
+    const json = decodeURIComponent(escape(atob(padded)));
+    return JSON.parse(json);
+  }
+
+  function getTokenPayload() {
+    const params = new URLSearchParams(location.search);
+    const t = params.get("t");
+    if (!t) return null;
+    try { return base64urlDecode(t); } catch { return null; }
+  }
+
+  function formatTime(ms) {
+    return new Date(ms).toLocaleString();
+  }
+
+  const payload = getTokenPayload();
+  if (!payload || !payload.exp || Date.now() > payload.exp) {
+    el("tokenWarning").classList.remove("hidden");
+    el("studentForm").classList.add("hidden");
+  } else {
+    const sessionName = payload.name ? ` • ${payload.name}` : "";
+    el("subtitle").textContent = `Opened from librarian QR${sessionName}`;
+    el("sessionInfo").textContent = `sid=${payload.sid} | expires=${formatTime(payload.exp)}`;
+  }
+
+  // -----------------------------
+  // Student details persistence (on this page)
+  // -----------------------------
+  const studentKey = "library_student_details";
+  function saveStudentDetails() {
+    const form = el("studentForm");
+    const data = Object.fromEntries(new FormData(form).entries());
+    localStorage.setItem(studentKey, JSON.stringify(data));
+    el("studentSaved").classList.remove("hidden");
+    setTimeout(() => el("studentSaved").classList.add("hidden"), 2500);
+    updateSubmitEnabled();
+  }
+
+  function loadStudentDetails() {
+    const raw = localStorage.getItem(studentKey);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      for (const [k, v] of Object.entries(data)) {
+        const input = el("studentForm").elements[k];
+        if (input) input.value = v;
+      }
+    } catch {}
+  }
+
+  el("studentForm").addEventListener("input", () => {
+    // Debounce-ish: save quickly without being annoying
+    clearTimeout(window.__saveTimer);
+    window.__saveTimer = setTimeout(saveStudentDetails, 400);
+  });
+
+  el("btnClear").addEventListener("click", () => {
+    el("studentForm").reset();
+    localStorage.removeItem(studentKey);
+    updateSubmitEnabled();
+  });
+
+  loadStudentDetails();
+
+  // -----------------------------
+  // Search UI
+  // -----------------------------
+  let selectedItemId = null;
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, s => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[s]));
+  }
+
+  function parseItemQr(text) {
+    const t = (text || "").trim();
+    if (!t) return null;
+    if (t.toUpperCase().startsWith("ITEM:")) return t.slice(5).trim();
+    return t; // allow raw id
+  }
+
+  function matchesQuery(item, q) {
+    if (!q) return true;
+    const s = q.toLowerCase();
+    return (
+      item.id.toLowerCase().includes(s) ||
+      item.title.toLowerCase().includes(s) ||
+      item.type.toLowerCase().includes(s)
+    );
+  }
+
+  function matchesFilter(item, filter) {
+    if (filter === "available") return item.available;
+    if (filter === "checkedout") return !item.available;
+    return true;
+  }
+
+  function renderResults() {
+    const q = el("searchInput").value.trim();
+    const filter = el("filterSelect").value;
+
+    const items = Object.values(state.items)
+      .filter(it => matchesQuery(it, q))
+      .filter(it => matchesFilter(it, filter))
+      .sort((a,b) => a.id.localeCompare(b.id));
+
+    el("searchMeta").textContent = items.length
+      ? `Found ${items.length} item(s). Tap one to select.`
+      : "No items match your search.";
+
+    const container = el("results");
+    container.innerHTML = "";
+
+    items.forEach(item => {
+      const statusBadge = item.available
+        ? `<span class="inline-flex rounded-full border px-2 py-0.5 text-xs text-emerald-700 bg-emerald-50 border-emerald-200">Available</span>`
+        : `<span class="inline-flex rounded-full border px-2 py-0.5 text-xs text-rose-700 bg-rose-50 border-rose-200">Checked out</span>`;
+
+      const isSelected = selectedItemId === item.id;
+      const selectedClass = isSelected ? "ring-2 ring-slate-300" : "";
+
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `w-full text-left rounded-xl border bg-white p-3 hover:bg-slate-50 ${selectedClass}`;
+      row.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="font-semibold">${escapeHtml(item.title)}</div>
+            <div class="mt-1 text-sm text-slate-700">
+              <span class="font-mono">${escapeHtml(item.id)}</span>
+              <span class="mx-2 text-slate-300">•</span>
+              ${escapeHtml(item.type)}
+            </div>
+          </div>
+          <div class="shrink-0">${statusBadge}</div>
+        </div>
+        ${item.available ? "" : `<div class="mt-2 text-xs text-slate-500">Currently borrowed</div>`}
+      `;
+      row.addEventListener("click", () => {
+        selectedItemId = item.id;
+        updateSelectedItem();
+        renderResults();
+      });
+
+      container.appendChild(row);
+    });
+
+    updateSubmitEnabled();
+  }
+
+  function updateSelectedItem() {
+    if (!selectedItemId || !state.items[selectedItemId]) {
+      el("selectedItem").textContent = "—";
+      return;
+    }
+    const item = state.items[selectedItemId];
+    el("selectedItem").innerHTML =
+      `${escapeHtml(item.title)} — <span class="font-mono">${escapeHtml(item.id)}</span> (${escapeHtml(item.type)}) • `
+      + (item.available ? `<span class="text-emerald-700 font-semibold">Available</span>`
+                        : `<span class="text-rose-700 font-semibold">Checked out</span>`);
+  }
+
+  el("searchInput").addEventListener("input", renderResults);
+  el("filterSelect").addEventListener("change", renderResults);
+
+  // -----------------------------
+  // Optional item QR scanning inside student page
+  // -----------------------------
+  let html5QrCode = null;
+  let scanning = false;
+
+  async function startScan() {
+    if (scanning) return;
+    scanning = true;
+
+    el("scanBox").classList.remove("hidden");
+    el("btnScanItem").disabled = true;
+    el("btnStopScan").disabled = false;
+
+    html5QrCode = new Html5Qrcode("reader");
+    try {
+      const cams = await Html5Qrcode.getCameras();
+      if (!cams || cams.length === 0) throw new Error("No camera");
+
+      await html5QrCode.start(
+        cams[0].id,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          const id = parseItemQr(decodedText);
+          if (id) {
+            el("searchInput").value = id;
+            renderResults();
+          }
+        }
+      );
+    } catch (e) {
+      // If scan fails (permissions/https), just stop gracefully
+      await stopScan();
+      alert("Cannot start camera scanner. Use HTTPS/localhost and allow camera permission.");
+    }
+  }
+
+  async function stopScan() {
+    if (!scanning) return;
+    scanning = false;
+
+    try {
+      await html5QrCode.stop();
+      await html5QrCode.clear();
+    } catch {}
+    html5QrCode = null;
+
+    el("scanBox").classList.add("hidden");
+    el("btnScanItem").disabled = false;
+    el("btnStopScan").disabled = true;
+  }
+
+  el("btnScanItem").addEventListener("click", startScan);
+  el("btnStopScan").addEventListener("click", stopScan);
+
+  // -----------------------------
+  // Submit request (local demo)
+  // -----------------------------
+  function studentIsValid() {
+    const form = el("studentForm");
+    return form.reportValidity(); // shows native validation prompts
+  }
+
+  function updateSubmitEnabled() {
+    const item = selectedItemId && state.items[selectedItemId];
+    const hasItem = !!item;
+    el("btnSubmit").disabled = !hasItem;
+  }
+
+  el("btnSubmit").addEventListener("click", () => {
+    if (!payload || !payload.exp || Date.now() > payload.exp) {
+      el("tokenWarning").classList.remove("hidden");
+      return;
+    }
+
+    if (!studentIsValid()) return;
+
+    if (!selectedItemId || !state.items[selectedItemId]) return;
+
+    const student = Object.fromEntries(new FormData(el("studentForm")).entries());
+    const item = state.items[selectedItemId];
+
+    const record = {
+      sessionId: payload.sid,
+      sessionName: payload.name || null,
+      submittedAt: new Date().toISOString(),
+      student,
+      requestedItem: { id: item.id, title: item.title, type: item.type, available: item.available }
+    };
+
+    // Save locally for demo
+    const key = "library_requests";
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    existing.push(record);
+    localStorage.setItem(key, JSON.stringify(existing));
+
+    console.log("Saved request:", record);
+
+    el("success").classList.remove("hidden");
+    setTimeout(() => el("success").classList.add("hidden"), 4000);
+  });
+
+  el("btnResetDemo").addEventListener("click", () => {
+    state = initialState();
+    selectedItemId = null;
+    el("searchInput").value = "";
+    updateSelectedItem();
+    renderResults();
+  });
+
+  // Initial render
+  updateSelectedItem();
+  renderResults();
+  updateSubmitEnabled();
+</script>
+</body>
+</html>

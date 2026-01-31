@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Librarian QR</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <header class="border-b bg-white">
+    <div class="mx-auto max-w-3xl px-4 py-5">
+      <h1 class="text-xl font-bold">Librarian QR Generator</h1>
+      <p class="text-sm text-slate-600">Show this QR to students. Scanning opens the web form.</p>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-3xl px-4 py-6 space-y-6">
+    <section class="rounded-xl border bg-white p-4 space-y-4">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-sm text-slate-700">Session / Class name (optional)</span>
+          <input id="sessionName" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                 placeholder="e.g. Library Visit - Grade 10" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm text-slate-700">Link expires in (minutes)</span>
+          <input id="expiresIn" type="number" min="1" value="15"
+                 class="mt-1 w-full rounded-lg border px-3 py-2 text-sm" />
+        </label>
+      </div>
+
+      <label class="block">
+        <span class="text-sm text-slate-700">Form page URL (auto-detected)</span>
+        <input id="formUrl" class="mt-1 w-full rounded-lg border px-3 py-2 text-sm font-mono" />
+        <p class="mt-1 text-xs text-slate-500">
+          Put your hosted URL here if needed (e.g. https://yourdomain.com/form.html).
+        </p>
+      </label>
+
+      <div class="flex flex-wrap gap-2">
+        <button id="btnGenerate"
+          class="rounded-lg bg-slate-900 text-white px-3 py-2 text-sm hover:bg-slate-800">
+          Generate QR
+        </button>
+
+        <button id="btnCopy"
+          class="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50" disabled>
+          Copy link
+        </button>
+      </div>
+    </section>
+
+    <section class="rounded-xl border bg-white p-4">
+      <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 class="font-semibold">QR Code</h2>
+          <p class="text-sm text-slate-600">Students scan → form opens.</p>
+
+          <div class="mt-3 rounded-lg bg-slate-50 border p-3">
+            <div class="text-xs text-slate-500">Current link:</div>
+            <div id="currentLink" class="mt-1 text-sm font-mono break-all">—</div>
+          </div>
+
+          <div id="msg" class="mt-3 hidden rounded-lg border px-3 py-2 text-sm"></div>
+        </div>
+
+        <div class="rounded-xl border bg-slate-50 p-4">
+          <div id="qr" class="w-[220px] h-[220px] flex items-center justify-center"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    // Auto-fill form URL based on where this page is hosted
+    const defaultFormUrl = new URL("form.html", window.location.href).toString();
+    el("formUrl").value = defaultFormUrl;
+
+    let latestLink = "";
+
+    function showMsg(text, kind = "info") {
+      const box = el("msg");
+      box.classList.remove("hidden",
+        "bg-emerald-50","border-emerald-200","text-emerald-900",
+        "bg-rose-50","border-rose-200","text-rose-900",
+        "bg-slate-50","border-slate-200","text-slate-900"
+      );
+      if (kind === "success") box.classList.add("bg-emerald-50","border-emerald-200","text-emerald-900");
+      else if (kind === "error") box.classList.add("bg-rose-50","border-rose-200","text-rose-900");
+      else box.classList.add("bg-slate-50","border-slate-200","text-slate-900");
+      box.textContent = text;
+      box.classList.remove("hidden");
+    }
+
+    function clearQR() {
+      el("qr").innerHTML = "";
+    }
+
+    function base64urlEncode(obj) {
+      const json = JSON.stringify(obj);
+      const b64 = btoa(unescape(encodeURIComponent(json)));
+      return b64.replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+    }
+
+    function generate() {
+      const formUrl = el("formUrl").value.trim();
+      if (!formUrl) return showMsg("Form URL is required.", "error");
+
+      const expiresMin = Math.max(1, Number(el("expiresIn").value || 15));
+      const sessionName = el("sessionName").value.trim();
+
+      const payload = {
+        sid: crypto.randomUUID(),
+        name: sessionName || null,
+        exp: Date.now() + expiresMin * 60 * 1000
+      };
+
+      const token = base64urlEncode(payload);
+
+      const url = new URL(formUrl);
+      url.searchParams.set("t", token);
+
+      latestLink = url.toString();
+      el("currentLink").textContent = latestLink;
+
+      clearQR();
+      new QRCode(el("qr"), {
+        text: latestLink,
+        width: 220,
+        height: 220
+      });
+
+      el("btnCopy").disabled = false;
+      showMsg("QR generated. Show it to students to scan.", "success");
+    }
+
+    async function copyLink() {
+      if (!latestLink) return;
+      await navigator.clipboard.writeText(latestLink);
+      showMsg("Link copied.", "success");
+    }
+
+    el("btnGenerate").addEventListener("click", generate);
+    el("btnCopy").addEventListener("click", copyLink);
+  </script>
+</body>
+</html>
